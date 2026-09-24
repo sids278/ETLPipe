@@ -7,7 +7,7 @@ source:
   trust_server_certificate: true
 target:
   host: clickhouse
-  username: default
+  username: ${CH_USER:-default}
   password: ${CH_PASSWORD}
   database: analytics
 sync:

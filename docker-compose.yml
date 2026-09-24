@@ -26,7 +26,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     environment:
-      CLICKHOUSE_USER: default
+      CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-ch_pass}
     ports: ["8123:8123", "9000:9000"]
     ulimits:
@@ -43,6 +43,7 @@ services:
       clickhouse: { condition: service_healthy }
     environment:
       MSSQL_PASSWORD: ${MSSQL_PASSWORD:-Str0ng_Passw0rd}
+      CH_USER: ${CH_USER:-default}
       CH_PASSWORD: ${CH_PASSWORD:-ch_pass}
       LOG_LEVEL: INFO
     volumes: ["./config.docker.yaml:/app/config.yaml:ro"]
