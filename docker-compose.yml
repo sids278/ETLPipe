@@ -1,0 +1,51 @@
+# Local demo: SQL Server + ClickHouse + ch-sync.
+#   docker compose up -d --build
+#   docker compose exec ch-sync ch-sync --config /app/config.yaml status
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_PASSWORD:-Str0ng_Passw0rd}
+    ports: ["1433:1433"]
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -Q "SELECT 1" -b
+      interval: 10s
+      retries: 30
+
+  mssql-seed:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      mssql: { condition: service_healthy }
+    volumes: ["./sql:/sql:ro"]
+    entrypoint: ["/opt/mssql-tools18/bin/sqlcmd", "-C", "-S", "mssql", "-U", "sa",
+                 "-P", "${MSSQL_PASSWORD:-Str0ng_Passw0rd}", "-b", "-i", "/sql/02_demo_seed.sql"]
+    restart: "no"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-ch_pass}
+    ports: ["8123:8123", "9000:9000"]
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: wget -qO- http://localhost:8123/ping
+      interval: 5s
+      retries: 30
+
+  ch-sync:
+    build: .
+    depends_on:
+      mssql-seed: { condition: service_completed_successfully }
+      clickhouse: { condition: service_healthy }
+    environment:
+      MSSQL_PASSWORD: ${MSSQL_PASSWORD:-Str0ng_Passw0rd}
+      CH_PASSWORD: ${CH_PASSWORD:-ch_pass}
+      LOG_LEVEL: INFO
+    volumes: ["./config.docker.yaml:/app/config.yaml:ro"]
+    command: ["run"]
+    restart: unless-stopped
+    stop_grace_period: 45s

@@ -1,0 +1,19 @@
+# Used by docker-compose.yml (demo only).
+source:
+  server: mssql
+  database: ShopDemo
+  username: sa
+  password: ${MSSQL_PASSWORD}
+  trust_server_certificate: true
+target:
+  host: clickhouse
+  username: default
+  password: ${CH_PASSWORD}
+  database: analytics
+sync:
+  workers: 4
+  poll_interval: 5
+  auto_discover: true
+  snapshot_partitions: 4
+  min_rows_per_partition: 25000
+tables: []

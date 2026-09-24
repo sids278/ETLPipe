@@ -1,0 +1,51 @@
+# ch-sync configuration. ${VAR} / ${VAR:-default} are read from the environment.
+
+source:                                   # SQL Server
+  server: sqlserver.internal
+  port: 1433
+  database: Shop
+  username: ch_sync                       # omit username/password for integrated auth
+  password: ${MSSQL_PASSWORD}
+  driver: ODBC Driver 18 for SQL Server
+  encrypt: true
+  trust_server_certificate: false
+  use_snapshot_isolation: true            # needs ALLOW_SNAPSHOT_ISOLATION ON (recommended)
+  fetch_size: 10000                       # rows per ODBC round trip
+  # extra_params: { "MultiSubnetFailover": "yes" }
+
+target:                                   # ClickHouse
+  host: clickhouse.internal
+  port: 8123                              # 8443 with secure: true
+  secure: false
+  username: ch_sync
+  password: ${CH_PASSWORD}
+  database: analytics                     # synced tables live here
+  meta_database: ch_sync                  # checkpoints, progress, run log
+  replicated: false                       # true -> Replicated*MergeTree (Replicated database engine)
+  create_views: true                      # <table>_current = FINAL + deleted rows removed
+  view_suffix: _current
+
+sync:
+  workers: 8                              # worker processes (~1 CPU core each)
+  max_snapshot_workers: 4                 # cap for initial loads; the rest stays free for CDC
+  poll_interval: 15                       # seconds between CT polls per table
+  batch_size: 100000                      # rows per ClickHouse insert (bigger = fewer parts)
+  snapshot_partitions: 8                  # parallel ranges per table (single integer PK only)
+  min_rows_per_partition: 2000000
+  schema_refresh_seconds: 300             # schema drift / table discovery interval
+  auto_discover: false                    # true = sync every CT-enabled table
+  shard_index: 0                          # horizontal scaling: run N instances with
+  shard_count: 1                          #   SHARD_INDEX=0..N-1 and SHARD_COUNT=N
+
+tables:
+  - source: dbo.Orders
+    partition_by: toYYYYMM(CreatedAt)     # optional, raw ClickHouse expression
+    order_by: [CustomerId, OrderId]       # optional; must contain all PK columns
+    snapshot_partitions: 16
+
+  - source: sales.OrderLines
+    target: order_lines                   # optional rename in ClickHouse
+
+  - source: dbo.Customers
+    exclude_columns: [PasswordHash, Ssn]  # never leaves SQL Server
+    poll_interval: 60
