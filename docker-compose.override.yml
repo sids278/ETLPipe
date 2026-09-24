@@ -1,0 +1,4 @@
+services:
+  clickhouse:
+    container_name: PipeLineClickHouseContainer
+    image: clickhouse:latest
